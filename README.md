@@ -1,1 +1,1 @@
-# ECE_Capstone_23_A2_CyberJewelery
+# ECE Capstone S23 - Team A2: CyberJewelery
