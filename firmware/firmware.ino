@@ -88,8 +88,8 @@ Adafruit_BluefruitLE_SPI ble(BLUEFRUIT_SPI_CS, BLUEFRUIT_SPI_IRQ, BLUEFRUIT_SPI_
 
 Adafruit_DotStarMatrix matrix = Adafruit_DotStarMatrix(
                                   8, 8, DATAPIN, CLOCKPIN,
-                                  DS_MATRIX_BOTTOM     + DS_MATRIX_LEFT +
-                                  DS_MATRIX_ROWS + DS_MATRIX_PROGRESSIVE,
+                                  DS_MATRIX_BOTTOM     + DS_MATRIX_RIGHT +
+                                  DS_MATRIX_COLUMNS + DS_MATRIX_PROGRESSIVE,
                                   DOTSTAR_BGR);
 
 // const uint16_t primaryColors[] = {
