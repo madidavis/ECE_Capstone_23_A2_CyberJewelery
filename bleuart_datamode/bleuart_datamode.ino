@@ -17,6 +17,7 @@
 #include "Adafruit_BLE.h"
 #include "Adafruit_BluefruitLE_SPI.h"
 #include "Adafruit_BluefruitLE_UART.h"
+#include "Adafruit_BLEBattery.h"
 
 #include "BluefruitConfig.h"
 
@@ -92,12 +93,17 @@ Adafruit_BluefruitLE_SPI ble(BLUEFRUIT_SPI_CS, BLUEFRUIT_SPI_IRQ, BLUEFRUIT_SPI_
 //                             BLUEFRUIT_SPI_MOSI, BLUEFRUIT_SPI_CS,
 //                             BLUEFRUIT_SPI_IRQ, BLUEFRUIT_SPI_RST);
 
+Adafruit_BLEBattery battery(ble);
+
 
 // A small helper
 void error(const __FlashStringHelper*err) {
   Serial.println(err);
   while (1);
 }
+
+char password[] = "123456";
+bool passed = false;
 
 /**************************************************************************/
 /*!
@@ -109,6 +115,12 @@ void setup(void)
 {
   matrix.begin();
   matrix.setBrightness(2);
+
+  matrix.fillScreen(0);
+  matrix.show();
+  delay(500);
+
+  // attachInterrupt(digitalPinToInterrupt(8), receive, LOW);
 
   while (!Serial);  // required for Flora & Micro
   delay(500);
@@ -141,12 +153,17 @@ void setup(void)
   Serial.println("Requesting Bluefruit info:");
   /* Print Bluefruit information */
   ble.info();
+  battery.begin(true);
 
   Serial.println(F("Please use Adafruit Bluefruit LE app to connect in UART mode"));
   Serial.println(F("Then Enter characters to send to Bluefruit"));
   Serial.println();
 
   ble.verbose(false);  // debug info is a little annoying after this point!
+
+  if (! ble.sendCommandCheckOK(F("AT+GAPDEVNAME=Cyber Jewelry")) ) {
+    error(F("Could not set device name?"));
+  }
 
   /* Wait for connection */
   while (! ble.isConnected()) {
@@ -199,6 +216,7 @@ void loop(void)
   // Echo received data
   while ( ble.available() )
   {
+    Serial.print("ble available\n");
     char c = (char) ble.read();
    // if (c == )
     
@@ -207,26 +225,34 @@ void loop(void)
     if (c == 0xA) {
       numRecv = iRecv;
       iRecv = 0;
-      processRGB();
+      if (passed) {
+        processRGB();
+      } else {
+        checkPassword();
+      }
     }
-    // Serial.print((char)c);
-
-    // // Hex output too, helps w/debugging!
-    // Serial.print(" [0x");
-    // if (c <= 0xF) Serial.print(F("0"));
-    // Serial.print(c, HEX);
-    // Serial.print("] ");
   }
   if (numRecv > 0) {
     Serial.printf("#bytes received: %d\n", numRecv);
-    // for (int j = 0; j < numRecv; j++) {
-    //   Serial.print(recv_buf[j]);
-    // }
-    // Serial.print(recv_buf[numRecv-1], HEX);
-    // Serial.print('\n');
+    for (int j = 0; j < numRecv; j++) {
+      Serial.print(recv_buf[j]);
+    }
+    Serial.print(recv_buf[numRecv-1], HEX);
+    Serial.print('\n');
     numRecv = 0;
   }
   // Serial.print('\n');
+}
+
+void checkPassword() {
+  if (numRecv != 7) {
+    return;
+  }
+  for (int i = 0; i < 6; i++) {
+    if (password[i] != recv_buf[i])
+      return;
+  }
+  passed = true;
 }
 
 // parses data and program LED matrix
@@ -269,4 +295,26 @@ void processRGB() {
 
   matrix.show();
   delay(500);
+}
+
+void receive() {
+  Serial.print("see interrupt\n");
+  while ( ble.available() )
+  {
+    Serial.print("ble available\n");
+    char c = (char) ble.read();
+   // if (c == )
+    
+    recv_buf[iRecv] = c;
+    iRecv++;
+    if (c == 0xA) {
+      numRecv = iRecv;
+      iRecv = 0;
+      if (passed) {
+        processRGB();
+      } else {
+        checkPassword();
+      }
+    }
+  }
 }
