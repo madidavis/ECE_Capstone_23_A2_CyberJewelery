@@ -234,7 +234,7 @@ void loop(void)
     iRecv = 0;
     Serial.printf("mode: %d\n", recv_buf[0]);
     for (int i = 0; i < 64; i++) {
-      Serial.printf("index: %d, r: %d, g: %d, b: %d, brightness: %d\n", recv_buf[1 + 5*i], recv_buf[1 + 5*i + 1], recv_buf[1 + 5*i + 2], recv_buf[1 + 5*i + 3], recv_buf[1 + 5*i + 4]);
+      Serial.printf("index: %d, r: %d, g: %d, b: %d, brightness: %d\n", recv_buf[2 + 5*i], recv_buf[2 + 5*i + 1], recv_buf[2 + 5*i + 2], recv_buf[2 + 5*i + 3], recv_buf[2 + 5*i + 4]);
     }
     optProcessRGB();
   }
