@@ -115,7 +115,7 @@ char recv_buf[800];
 
 void BleGattRX(int32_t chars_id, uint8_t data[], uint16_t len)
 {
-  if (iRecv < 320) {
+  if (numRecv < 320) {
     return;
   }
 
