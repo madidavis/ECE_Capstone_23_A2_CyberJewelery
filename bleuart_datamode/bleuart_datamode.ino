@@ -108,6 +108,7 @@ ledMode M;
 char password[] = "123456";
 bool passed = false;
 uint8_t flashState = 0;
+bool flashing = false;
 
 /**************************************************************************/
 /*!
@@ -228,7 +229,7 @@ void loop(void)
     // }
   }
 
-  if (iRecv > 320) {
+  if (iRecv >= 322) {
     numRecv = iRecv;
     iRecv = 0;
     Serial.printf("mode: %d\n", recv_buf[0]);
@@ -299,7 +300,7 @@ void processRGB() {
 }
 
 void optProcessRGB() {
-  if (numRecv < 321) {
+  if (numRecv < 322) {
     Serial.print("no enough RGB data received\n");
     return;
   }
@@ -335,10 +336,18 @@ void optProcessRGB() {
       break;
     }
 
-    case 0x06: {
-      M = FLASH;
+    default: {
+      M = STILL;
       break;
     }
+    // case 0x06: {
+    //   M = FLASH;
+    //   break;
+    // }
+  }
+
+  if (recv_buf[1]) {
+    flashing = true;
   }
 
   uint16_t x, y;
@@ -346,13 +355,13 @@ void optProcessRGB() {
 
   for (int pixel = 0; pixel < 64; pixel++) {
     // portocol: every pixel is defined by: 0x???(5 bytes in total)
-    r = recv_buf[1 + 5*pixel + 1];
+    r = recv_buf[2 + 5*pixel + 1];
 
-    g = recv_buf[1 + 5*pixel + 2];
+    g = recv_buf[2 + 5*pixel + 2];
 
-    b = recv_buf[1 + 5*pixel + 3];
+    b = recv_buf[2 + 5*pixel + 3];
 
-    brightness = recv_buf[1 + 5*pixel + 4];
+    brightness = recv_buf[2 + 5*pixel + 4];
 
     // float scale = 255 / brightness;
     // float scale = 255.0 / ((float) brightness);
@@ -377,6 +386,27 @@ void optProcessRGB() {
 
 void processMovingPattern() {
   switch (M) {
+    case STILL: {
+      if (flashing) {
+      matrix.setBrightness(0);
+      matrix.show();
+      delay(200);
+
+      matrix.setBrightness(5);
+      matrix.show();
+      delay(200);
+
+      matrix.setBrightness(0);
+      matrix.show();
+      delay(200);
+
+      matrix.setBrightness(5);
+      matrix.show();
+      delay(200);
+      }
+      break;
+    }
+
     case MOVEUP: {
       moveUp();
       break;
@@ -403,7 +433,7 @@ void processMovingPattern() {
     }
 
     case FLASH: {
-      flashing();
+      flash();
       break;
     }
   }
@@ -448,7 +478,25 @@ void moveRight() {
   }
 
   matrix.show();
-  delay(500);
+  if (flashing) {
+    matrix.setBrightness(0);
+    matrix.show();
+    delay(200);
+
+    matrix.setBrightness(5);
+    matrix.show();
+    delay(200);
+
+    matrix.setBrightness(0);
+    matrix.show();
+    delay(200);
+
+    matrix.setBrightness(5);
+    matrix.show();
+    delay(200);
+  } else {
+    delay(500);
+  }
 }
 
 // moveDown
@@ -468,7 +516,25 @@ void moveLeft() {
   }
 
   matrix.show();
-  delay(500);
+  if (flashing) {
+    matrix.setBrightness(0);
+    matrix.show();
+    delay(200);
+
+    matrix.setBrightness(5);
+    matrix.show();
+    delay(200);
+
+    matrix.setBrightness(0);
+    matrix.show();
+    delay(200);
+
+    matrix.setBrightness(5);
+    matrix.show();
+    delay(200);
+  } else {
+    delay(500);
+  }
 }
 
 // moveRight
@@ -488,7 +554,25 @@ void moveUp() {
   }
 
   matrix.show();
-  delay(500);
+  if (flashing) {
+    matrix.setBrightness(0);
+    matrix.show();
+    delay(200);
+
+    matrix.setBrightness(5);
+    matrix.show();
+    delay(200);
+
+    matrix.setBrightness(0);
+    matrix.show();
+    delay(200);
+
+    matrix.setBrightness(5);
+    matrix.show();
+    delay(200);
+  } else {
+    delay(500);
+  }
 }
 
 // moveLeft
@@ -508,7 +592,25 @@ void moveDown() {
   }
 
   matrix.show();
-  delay(500);
+  if (flashing) {
+    matrix.setBrightness(0);
+    matrix.show();
+    delay(200);
+
+    matrix.setBrightness(5);
+    matrix.show();
+    delay(200);
+
+    matrix.setBrightness(0);
+    matrix.show();
+    delay(200);
+
+    matrix.setBrightness(5);
+    matrix.show();
+    delay(200);
+  } else {
+    delay(500);
+  }
 }
 
 //rotateRight
@@ -540,10 +642,28 @@ void rotate() {
   }
 
   matrix.show();
-  delay(500);
+  if (flashing) {
+    matrix.setBrightness(0);
+    matrix.show();
+    delay(200);
+
+    matrix.setBrightness(5);
+    matrix.show();
+    delay(200);
+
+    matrix.setBrightness(0);
+    matrix.show();
+    delay(200);
+
+    matrix.setBrightness(5);
+    matrix.show();
+    delay(200);
+  } else {
+    delay(500);
+  }
 }
 
-void flashing() {
+void flash() {
   if (flashState == 0) {
     matrix.setBrightness(0);
     flashState = 1;
