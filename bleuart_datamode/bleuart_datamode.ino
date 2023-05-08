@@ -265,6 +265,10 @@ void loop(void)
     iRecv++;
   }
 
+  if (numRecv >= 320) {
+    ble.update(100);
+  }
+
   if (iRecv >= 320) {
     numRecv = iRecv;
     iRecv = 0;
