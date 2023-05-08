@@ -105,10 +105,50 @@ void error(const __FlashStringHelper*err) {
 }
 
 ledMode M;
-char password[] = "123456";
-bool passed = false;
 uint8_t flashState = 0;
 bool flashing = false;
+int32_t charid_number;
+
+void BleGattRX(int32_t chars_id, uint8_t data[], uint16_t len)
+{
+  Serial.print( F("[BLE GATT RX] (" ) );
+  Serial.print(chars_id);
+  Serial.print(") ");
+
+  int32_t val;
+  memcpy(&val, data, len);
+  switch(val) {
+    case 0: {
+      M = STILL;
+      break;
+    }
+
+    case 1: {
+      M = MOVEUP;
+      break;
+    }
+
+    case 2: {
+      M = MOVELEFT;
+      break;
+    }
+
+    case 3: {
+      M = MOVERIGHT;
+      break;
+    }
+
+    case 4: {
+      M = ROTATE;
+      break;
+    }
+
+    case 5: {
+      flashing = true;
+      break;
+    }
+  }
+}
 
 /**************************************************************************/
 /*!
@@ -174,6 +214,13 @@ void setup(void)
     error(F("Could not set device name?"));
   }
 
+  ble.sendCommandCheckOK( F("AT+GATTADDSERVICE=uuid=0x1234") );
+  // ble.sendCommandWithIntReply( F("AT+GATTADDCHAR=UUID=0x2345,PROPERTIES=0x08,MIN_LEN=1,MAX_LEN=6,DATATYPE=string,DESCRIPTION=string,VALUE=abc"), &charid_string);
+  ble.sendCommandWithIntReply( F("AT+GATTADDCHAR=UUID=0x6789,PROPERTIES=0x08,MIN_LEN=4,MAX_LEN=4,DATATYPE=INTEGER,DESCRIPTION=number,VALUE=0"), &charid_number);
+  ble.reset();
+
+  ble.setBleGattRxCallback(charid_number, BleGattRX);
+
   /* Wait for connection */
   while (! ble.isConnected()) {
       delay(500);
@@ -213,23 +260,12 @@ void loop(void)
   {
     Serial.printf("iRecv: %d, ble available\n", iRecv);
     char c = (char) ble.read();
-   // if (c == )
     
     recv_buf[iRecv] = c;
     iRecv++;
-    // if (c == 0xA) {
-    //   numRecv = iRecv;
-    //   iRecv = 0;
-    //   // if (passed) {
-    //   //   processRGB();
-    //   // } else {
-    //   //   checkPassword();
-    //   // }
-    //   // optProcessRGB();
-    // }
   }
 
-  if (iRecv >= 322) {
+  if (iRecv >= 320) {
     numRecv = iRecv;
     iRecv = 0;
     Serial.printf("mode: %d\n", recv_buf[0]);
@@ -242,17 +278,6 @@ void loop(void)
   if (!ble.available()) {
     processMovingPattern();
   }
-}
-
-void checkPassword() {
-  if (numRecv != 7) {
-    return;
-  }
-  for (int i = 0; i < 6; i++) {
-    if (password[i] != recv_buf[i])
-      return;
-  }
-  passed = true;
 }
 
 // parses data and program LED matrix
@@ -300,70 +325,70 @@ void processRGB() {
 }
 
 void optProcessRGB() {
-  if (numRecv < 322) {
+  if (numRecv < 320) {
     Serial.print("no enough RGB data received\n");
     return;
   }
 
-  switch (recv_buf[0]) {
-    case 0x00: {
-      M = STILL;
-      break;
-    }
+  // switch (recv_buf[0]) {
+  //   case 0x00: {
+  //     M = STILL;
+  //     break;
+  //   }
 
-    case 0x01: {
-      M = MOVEUP;
-      break;
-    }
+  //   case 0x01: {
+  //     M = MOVEUP;
+  //     break;
+  //   }
 
-    case 0x02: {
-      M = MOVEDOWN;
-      break;
-    }
+  //   case 0x02: {
+  //     M = MOVEDOWN;
+  //     break;
+  //   }
 
-    case 0x03: {
-      M = MOVELEFT;
-      break;
-    }
+  //   case 0x03: {
+  //     M = MOVELEFT;
+  //     break;
+  //   }
 
-    case 0x04: {
-      M = MOVERIGHT;
-      break;
-    }
+  //   case 0x04: {
+  //     M = MOVERIGHT;
+  //     break;
+  //   }
 
-    case 0x05: {
-      M = ROTATE;
-      break;
-    }
+  //   case 0x05: {
+  //     M = ROTATE;
+  //     break;
+  //   }
 
-    default: {
-      M = STILL;
-      break;
-    }
-    // case 0x06: {
-    //   M = FLASH;
-    //   break;
-    // }
-  }
+  //   default: {
+  //     M = STILL;
+  //     break;
+  //   }
+  //   // case 0x06: {
+  //   //   M = FLASH;
+  //   //   break;
+  //   // }
+  // }
 
-  if (recv_buf[1]) {
-    flashing = true;
-  } else {
-    flashing = false;
-  }
+  // if (recv_buf[1]) {
+  //   flashing = true;
+  // } else {
+  //   flashing = false;
+  // }
 
   uint16_t x, y;
   uint8_t r, g, b, brightness;
 
   for (int pixel = 0; pixel < 64; pixel++) {
     // portocol: every pixel is defined by: 0x???(5 bytes in total)
-    r = recv_buf[2 + 5*pixel + 1];
+    r = recv_buf[5*pixel + 1];
 
-    g = recv_buf[2 + 5*pixel + 2];
+    g = recv_buf[5*pixel + 2];
 
-    b = recv_buf[2 + 5*pixel + 3];
+    b = recv_buf[5*pixel + 3];
 
-    brightness = recv_buf[2 + 5*pixel + 4];
+    brightness = recv_buf[5*pixel + 4];
 
     // float scale = 255 / brightness;
     // float scale = 255.0 / ((float) brightness);
@@ -434,32 +459,10 @@ void processMovingPattern() {
       break;
     }
 
-    case FLASH: {
-      flash();
-      break;
-    }
-  }
-}
-
-void receive() {
-  Serial.print("see interrupt\n");
-  while ( ble.available() )
-  {
-    Serial.print("ble available\n");
-    char c = (char) ble.read();
-   // if (c == )
-    
-    recv_buf[iRecv] = c;
-    iRecv++;
-    if (c == 0xA) {
-      numRecv = iRecv;
-      iRecv = 0;
-      if (passed) {
-        processRGB();
-      } else {
-        checkPassword();
-      }
-    }
+    // case FLASH: {
+    //   flash();
+    //   break;
+    // }
   }
 }
 
