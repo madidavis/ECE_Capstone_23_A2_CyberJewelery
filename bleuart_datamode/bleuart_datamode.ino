@@ -69,7 +69,7 @@ Adafruit_DotStarMatrix matrix = Adafruit_DotStarMatrix(
                               "DISABLE" or "MODE" or "BLEUART" or
                               "HWUART"  or "SPI"  or "MANUAL"
     -----------------------------------------------------------------------*/
-    #define FACTORYRESET_ENABLE         1
+    #define FACTORYRESET_ENABLE         0
     #define MINIMUM_FIRMWARE_VERSION    "0.6.6"
     #define MODE_LED_BEHAVIOUR          "MODE"
 /*=========================================================================*/
@@ -113,6 +113,9 @@ bool passed = false;
 /**************************************************************************/
 void setup(void)
 {
+  pinMode(11, OUTPUT);
+  randomSeed(analogRead(14));
+
   matrix.begin();
   matrix.setBrightness(2);
 
@@ -122,8 +125,8 @@ void setup(void)
 
   // attachInterrupt(digitalPinToInterrupt(8), receive, LOW);
 
-  while (!Serial);  // required for Flora & Micro
-  delay(500);
+  // while (!Serial);  // required for Flora & Micro
+  // delay(500);
 
   Serial.begin(115200);
   Serial.println(F("Adafruit Bluefruit Command <-> Data Mode Example"));
@@ -161,7 +164,7 @@ void setup(void)
 
   ble.verbose(false);  // debug info is a little annoying after this point!
 
-  if (! ble.sendCommandCheckOK(F("AT+GAPDEVNAME=Cyber Jewelry")) ) {
+  if (! ble.sendCommandCheckOK(F("AT+GAPDEVNAME=CYBER JEWELRY")) ) {
     error(F("Could not set device name?"));
   }
 
@@ -216,31 +219,41 @@ void loop(void)
   // Echo received data
   while ( ble.available() )
   {
-    Serial.print("ble available\n");
+    Serial.printf("iRecv: %d, ble available\n", iRecv);
     char c = (char) ble.read();
    // if (c == )
     
     recv_buf[iRecv] = c;
     iRecv++;
-    if (c == 0xA) {
-      numRecv = iRecv;
-      iRecv = 0;
-      if (passed) {
-        processRGB();
-      } else {
-        checkPassword();
-      }
-    }
+    // if (c == 0xA) {
+    //   numRecv = iRecv;
+    //   iRecv = 0;
+    //   // if (passed) {
+    //   //   processRGB();
+    //   // } else {
+    //   //   checkPassword();
+    //   // }
+    //   // optProcessRGB();
+    // }
   }
-  if (numRecv > 0) {
-    Serial.printf("#bytes received: %d\n", numRecv);
-    for (int j = 0; j < numRecv; j++) {
-      Serial.print(recv_buf[j]);
+
+  if (iRecv >= 320) {
+    numRecv = iRecv;
+    iRecv = 0;
+    for (int i = 0; i < 64; i++) {
+      Serial.printf("index: %d, r: %d, g: %d, b: %d, brightness: %d\n", recv_buf[5*i], recv_buf[5*i + 1], recv_buf[5*i + 2], recv_buf[5*i + 3], recv_buf[5*i + 4]);
     }
-    Serial.print(recv_buf[numRecv-1], HEX);
-    Serial.print('\n');
-    numRecv = 0;
+    optProcessRGB();
   }
+  // if (numRecv > 0) {
+  //   Serial.printf("#bytes received: %d\n", numRecv);
+  //   for (int j = 0; j < numRecv; j++) {
+  //     Serial.print(recv_buf[j]);
+  //   }
+  //   Serial.print(recv_buf[numRecv-1], HEX);
+  //   Serial.print('\n');
+  //   numRecv = 0;
+  // }
   // Serial.print('\n');
 }
 
@@ -266,6 +279,7 @@ void processRGB() {
   char *p;
   char hex_buf[4];
 
+  // digitalWrite(11, HIGH);
   for (int pixel = 0; pixel < 64; pixel++) {
     // current portocol: every pixel is defined by: 0x??0x??0x?? (12 bytes in total)
     hex_buf[0] = recv_buf[pixel*12];
@@ -290,6 +304,46 @@ void processRGB() {
     x = pixel % 8;
 
     Serial.printf("pixel: %d, r: %d g: %d b: %d\n", pixel, r, g, b);
+    matrix.drawPixel(x, y, matrix.Color(r, g, b));
+  }
+
+  matrix.show();
+  // digitalWrite(11, LOW);
+  delay(500);
+}
+
+void optProcessRGB() {
+  if (numRecv < 320) {
+    Serial.print("no enough RGB data received\n");
+    return;
+  }
+  uint16_t x, y;
+  uint8_t r, g, b, brightness;
+
+  for (int pixel = 0; pixel < 64; pixel++) {
+    // portocol: every pixel is defined by: 0x???(5 bytes in total)
+    r = recv_buf[5*pixel + 1];
+
+    g = recv_buf[5*pixel + 2];
+
+    b = recv_buf[5*pixel + 3];
+
+    brightness = recv_buf[5*pixel + 4];
+
+    // float scale = 255 / brightness;
+    // float scale = 255.0 / ((float) brightness);
+    float scale = ((float) brightness) / 255.0;
+
+    r = r * scale;
+    g = g * scale;
+    b = b * scale;
+
+    y = pixel / 8;
+    x = pixel % 8;
+
+    // scale = 97.0 / 255.0;
+    Serial.printf("scale: %f\n", scale);
+    // Serial.printf("pixel: %d, r: %d g: %d b: %d\n", pixel, r, g, b);
     matrix.drawPixel(x, y, matrix.Color(r, g, b));
   }
 
