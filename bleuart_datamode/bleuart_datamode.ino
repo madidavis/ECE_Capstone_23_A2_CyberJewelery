@@ -95,6 +95,8 @@ Adafruit_BluefruitLE_SPI ble(BLUEFRUIT_SPI_CS, BLUEFRUIT_SPI_IRQ, BLUEFRUIT_SPI_
 
 Adafruit_BLEBattery battery(ble);
 
+enum ledMode {STILL, MOVELEFT, MOVERIGHT, MOVEUP, MOVEDOWN, ROTATE, FLASH};
+
 
 // A small helper
 void error(const __FlashStringHelper*err) {
@@ -102,8 +104,10 @@ void error(const __FlashStringHelper*err) {
   while (1);
 }
 
+ledMode M;
 char password[] = "123456";
 bool passed = false;
+uint8_t flashState = 0;
 
 /**************************************************************************/
 /*!
@@ -115,9 +119,10 @@ void setup(void)
 {
   pinMode(11, OUTPUT);
   randomSeed(analogRead(14));
+  M = STILL;
 
   matrix.begin();
-  matrix.setBrightness(2);
+  matrix.setBrightness(4);
 
   matrix.fillScreen(0);
   matrix.show();
@@ -201,20 +206,6 @@ char recv_buf[800];
 
 void loop(void)
 {
-  // Check for user input
-  char n, inputs[BUFSIZE+1];
-
-  if (Serial.available())
-  {
-    n = Serial.readBytes(inputs, BUFSIZE);
-    inputs[n] = 0;
-    // Send characters to Bluefruit
-    Serial.print("Sending: ");
-    Serial.println(inputs);
-
-    // Send input data to host via Bluefruit
-    ble.print(inputs);
-  }
 
   // Echo received data
   while ( ble.available() )
@@ -237,24 +228,19 @@ void loop(void)
     // }
   }
 
-  if (iRecv >= 320) {
+  if (iRecv > 320) {
     numRecv = iRecv;
     iRecv = 0;
+    Serial.printf("mode: %d\n", recv_buf[0]);
     for (int i = 0; i < 64; i++) {
-      Serial.printf("index: %d, r: %d, g: %d, b: %d, brightness: %d\n", recv_buf[5*i], recv_buf[5*i + 1], recv_buf[5*i + 2], recv_buf[5*i + 3], recv_buf[5*i + 4]);
+      Serial.printf("index: %d, r: %d, g: %d, b: %d, brightness: %d\n", recv_buf[1 + 5*i], recv_buf[1 + 5*i + 1], recv_buf[1 + 5*i + 2], recv_buf[1 + 5*i + 3], recv_buf[1 + 5*i + 4]);
     }
     optProcessRGB();
   }
-  // if (numRecv > 0) {
-  //   Serial.printf("#bytes received: %d\n", numRecv);
-  //   for (int j = 0; j < numRecv; j++) {
-  //     Serial.print(recv_buf[j]);
-  //   }
-  //   Serial.print(recv_buf[numRecv-1], HEX);
-  //   Serial.print('\n');
-  //   numRecv = 0;
-  // }
-  // Serial.print('\n');
+
+  if (!ble.available()) {
+    processMovingPattern();
+  }
 }
 
 void checkPassword() {
@@ -313,42 +299,114 @@ void processRGB() {
 }
 
 void optProcessRGB() {
-  if (numRecv < 320) {
+  if (numRecv < 321) {
     Serial.print("no enough RGB data received\n");
     return;
   }
+
+  switch (recv_buf[0]) {
+    case 0x00: {
+      M = STILL;
+      break;
+    }
+
+    case 0x01: {
+      M = MOVEUP;
+      break;
+    }
+
+    case 0x02: {
+      M = MOVEDOWN;
+      break;
+    }
+
+    case 0x03: {
+      M = MOVELEFT;
+      break;
+    }
+
+    case 0x04: {
+      M = MOVERIGHT;
+      break;
+    }
+
+    case 0x05: {
+      M = ROTATE;
+      break;
+    }
+
+    case 0x06: {
+      M = FLASH;
+      break;
+    }
+  }
+
   uint16_t x, y;
   uint8_t r, g, b, brightness;
 
   for (int pixel = 0; pixel < 64; pixel++) {
     // portocol: every pixel is defined by: 0x???(5 bytes in total)
-    r = recv_buf[5*pixel + 1];
+    r = recv_buf[1 + 5*pixel + 1];
 
-    g = recv_buf[5*pixel + 2];
+    g = recv_buf[1 + 5*pixel + 2];
 
-    b = recv_buf[5*pixel + 3];
+    b = recv_buf[1 + 5*pixel + 3];
 
-    brightness = recv_buf[5*pixel + 4];
+    brightness = recv_buf[1 + 5*pixel + 4];
 
     // float scale = 255 / brightness;
     // float scale = 255.0 / ((float) brightness);
-    float scale = ((float) brightness) / 255.0;
+    // float scale = ((float) brightness) / 255.0;
 
-    r = r * scale;
-    g = g * scale;
-    b = b * scale;
+    // r = r * scale;
+    // g = g * scale;
+    // b = b * scale;
 
     y = pixel / 8;
     x = pixel % 8;
 
     // scale = 97.0 / 255.0;
-    Serial.printf("scale: %f\n", scale);
+    // Serial.printf("scale: %f\n", scale);
     // Serial.printf("pixel: %d, r: %d g: %d b: %d\n", pixel, r, g, b);
     matrix.drawPixel(x, y, matrix.Color(r, g, b));
   }
 
   matrix.show();
   delay(500);
+}
+
+void processMovingPattern() {
+  switch (M) {
+    case MOVEUP: {
+      moveUp();
+      break;
+    }
+
+    case MOVEDOWN: {
+      moveDown();
+      break;
+    }
+
+    case MOVELEFT: {
+      moveLeft();
+      break;
+    }
+
+    case MOVERIGHT: {
+      moveRight();
+      break;
+    }
+
+    case ROTATE: {
+      rotate();
+      break;
+    }
+
+    case FLASH: {
+      flashing();
+      break;
+    }
+  }
 }
 
 void receive() {
@@ -371,4 +429,128 @@ void receive() {
       }
     }
   }
+}
+
+// moveUp
+void moveRight() {
+  uint32_t color_read, color_to_write;
+  for (int x = 0; x < 8; x++) {
+    color_to_write = matrix.getPixelColor(8 * 7 + x);
+    for (int y = 7; y >= 0; y--) {
+      if (y != 0) {
+        color_read = matrix.getPixelColor(8 * (y - 1) + x);
+        matrix.setPixelColor(8 * (y - 1) + x, color_to_write);
+        color_to_write = color_read;
+      } else {
+        matrix.setPixelColor(8 * 7 + x, color_to_write);
+      }
+    }
+  }
+
+  matrix.show();
+  delay(500);
+}
+
+// moveDown
+void moveLeft() {
+  uint32_t color_read, color_to_write;
+  for (int x = 0; x < 8; x++) {
+    color_to_write = matrix.getPixelColor(x);
+    for (int y = 0; y <= 7; y++) {
+      if (y != 7) {
+        color_read = matrix.getPixelColor(8 * (y + 1) + x);
+        matrix.setPixelColor(8 * (y + 1) + x, color_to_write);
+        color_to_write = color_read;
+      } else {
+        matrix.setPixelColor(x, color_to_write);
+      }
+    }
+  }
+
+  matrix.show();
+  delay(500);
+}
+
+// moveRight
+void moveUp() {
+  uint32_t color_read, color_to_write;
+  for (int y = 0; y < 8; y++) {
+    color_to_write = matrix.getPixelColor(8 * y);
+    for (int x = 0; x <= 7; x++) {
+      if (x != 7) {
+        color_read = matrix.getPixelColor(8 * y + x + 1);
+        matrix.setPixelColor(8 * y + x + 1, color_to_write);
+        color_to_write = color_read;
+      } else {
+        matrix.setPixelColor(8 * y, color_to_write);
+      }
+    }
+  }
+
+  matrix.show();
+  delay(500);
+}
+
+// moveLeft
+void moveDown() {
+  uint32_t color_read, color_to_write;
+  for (int y = 0; y < 8; y++) {
+    color_to_write = matrix.getPixelColor(8 * y + 7);
+    for (int x = 7; x >= 0; x--) {
+      if (x != 0) {
+        color_read = matrix.getPixelColor(8 * y + x - 1);
+        matrix.setPixelColor(8 * y + x - 1, color_to_write);
+        color_to_write = color_read;
+      } else {
+        matrix.setPixelColor(8 * y + 7, color_to_write);
+      }
+    }
+  }
+
+  matrix.show();
+  delay(500);
+}
+
+//rotateRight
+void rotate() {
+  int xDisp, yDisp, newX, newY, tmp;
+  int centerX[4] = {3, 4, 4, 3};
+  int centerY[4] = {4, 4, 3, 3};
+  for (int y = 0; y < 4; y++) {
+    for (int x = y; x < 8 - y - 1; x++) {
+      uint32_t color_to_write = matrix.getPixelColor(8 * y + x);
+      uint32_t color_read;
+      xDisp = x - centerX[3];
+      yDisp = y - centerY[3];
+      for (int i = 0; i < 4; i++) {
+        //swap xDisp, yDisp
+        tmp = xDisp;
+        xDisp = yDisp;
+        yDisp = -tmp;
+
+        newX = centerX[i] + xDisp;
+        newY = centerY[i] + yDisp;
+        color_read = matrix.getPixelColor(8 * newY + newX);
+        matrix.setPixelColor(8 * newY + newX, color_to_write);
+        //Serial.printf("(%d, %d)\n", newX, newY);
+
+        color_to_write = color_read;
+      }
+    }
+  }
+
+  matrix.show();
+  delay(500);
+}
+
+void flashing() {
+  if (flashState == 0) {
+    matrix.setBrightness(0);
+    flashState = 1;
+  } else {
+    matrix.setBrightness(5);
+    flashState = 0;
+  }
+  matrix.show();
+  delay(100);
 }
