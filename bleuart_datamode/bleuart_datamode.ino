@@ -109,8 +109,16 @@ uint8_t flashState = 0;
 bool flashing = false;
 int32_t charid_number;
 
+int iRecv = 0; // index for receiving data
+int numRecv = 0; // this number is set when the end of transfer ascii character (0xA) is received to store how many bytes is received
+char recv_buf[800]; 
+
 void BleGattRX(int32_t chars_id, uint8_t data[], uint16_t len)
 {
+  if (iRecv < 320) {
+    return;
+  }
+
   Serial.print( F("[BLE GATT RX] (" ) );
   Serial.print(chars_id);
   Serial.print(") ");
@@ -248,9 +256,9 @@ void setup(void)
     @brief  Constantly poll for new command or response data
 */
 /**************************************************************************/
-int iRecv = 0; // index for receiving data
-int numRecv = 0; // this number is set when the end of transfer ascii character (0xA) is received to store how many bytes is received
-char recv_buf[800]; 
+// int iRecv = 0; // index for receiving data
+// int numRecv = 0; // this number is set when the end of transfer ascii character (0xA) is received to store how many bytes is received
+// char recv_buf[800]; 
 
 void loop(void)
 {
@@ -265,9 +273,10 @@ void loop(void)
     iRecv++;
   }
 
-  if (numRecv >= 320) {
-    ble.update(100);
-  }
+  // if (numRecv >= 320) {
+  //   ble.update(100);
+  // }
+  ble.update(10);
 
   if (iRecv >= 320) {
     numRecv = iRecv;
