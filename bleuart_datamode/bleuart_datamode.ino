@@ -348,6 +348,8 @@ void optProcessRGB() {
 
   if (recv_buf[1]) {
     flashing = true;
+  } else {
+    flashing = false;
   }
 
   uint16_t x, y;
